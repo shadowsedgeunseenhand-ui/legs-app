@@ -970,7 +970,7 @@
     <div class="panel-title">Set Your Vibe</div>
 
     <div class="field">
-      <label>📍 Your Front Door Address</label>
+      <label id="locationLabel">📍 Your Front Door Address</label>
       <input type="text" id="location" placeholder="123 Main St, San Francisco, CA">
     </div>
 
@@ -1170,352 +1170,339 @@
 </div>
 
 <script>
-// Set default date to today
-const today = new Date();
-document.getElementById('rideDate').value = today.toLocaleDateString('en-US', {weekday:'long', year:'numeric', month:'long', day:'numeric'});
+// ── Init ──────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', function() {
+  // Set today's date
+  var today = new Date();
+  var dateStr = today.toLocaleDateString('en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+  });
+  document.getElementById('rideDate').value = dateStr;
 
-// Track kahuna mode
-let isKahuna = false;
+  // Address confirmation feedback
+  var locInput = document.getElementById('location');
+  var locLabel = document.getElementById('locationLabel');
+  locInput.addEventListener('blur', function() {
+    if (locInput.value.trim()) {
+      locLabel.textContent = '📍 Front Door — ' + locInput.value.trim();
+      locLabel.style.color = 'var(--pink-bright)';
+    } else {
+      locLabel.textContent = '📍 Your Front Door Address';
+      locLabel.style.color = '';
+    }
+  });
 
-function toggleKahuna(el) {
-  isKahuna = el.checked;
-  const badge = document.getElementById('kahunaHeaderBadge');
-  const btn = document.getElementById('findBtn');
-  if (isKahuna) {
-    badge.classList.add('visible');
-    btn.classList.add('kahuna-mode');
-    btn.textContent = '🌊 LAUNCH THE EXPEDITION';
-    // auto-set distance to 50+mi when Kahuna selected
-    document.getElementById('dist4').checked = true;
-  } else {
-    badge.classList.remove('visible');
-    btn.classList.remove('kahuna-mode');
-    btn.textContent = 'VIBE CHECK THE ROUTE';
-  }
-}
-
-// Listen for non-kahuna duration picks to reset mode
-document.querySelectorAll('input[name="duration"]').forEach(el => {
-  if (el.id !== 'd5') {
-    el.addEventListener('change', () => {
-      isKahuna = false;
-      document.getElementById('kahunaHeaderBadge').classList.remove('visible');
-      const btn = document.getElementById('findBtn');
-      btn.classList.remove('kahuna-mode');
-      btn.textContent = 'VIBE CHECK THE ROUTE';
+  // Kahuna toggle listeners
+  document.querySelectorAll('input[name="duration"]').forEach(function(el) {
+    el.addEventListener('change', function() {
+      var isK = el.id === 'd5';
+      window.kahunaMode = isK;
+      var badge = document.getElementById('kahunaHeaderBadge');
+      var btn = document.getElementById('findBtn');
+      if (isK) {
+        badge.classList.add('visible');
+        btn.classList.add('kahuna-mode');
+        btn.textContent = '🌊 LAUNCH THE EXPEDITION';
+        document.getElementById('dist4').checked = true;
+      } else {
+        badge.classList.remove('visible');
+        btn.classList.remove('kahuna-mode');
+        btn.textContent = 'VIBE CHECK THE ROUTE';
+      }
     });
-  }
+  });
 });
 
+window.kahunaMode = false;
+
 function getSelected(name) {
-  const el = document.querySelector(`input[name="${name}"]:checked`);
+  var el = document.querySelector('input[name="' + name + '"]:checked');
   return el ? el.value : '';
 }
 
 function getChecked(name) {
-  return Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map(e => e.value);
+  var els = document.querySelectorAll('input[name="' + name + '"]:checked');
+  return Array.from(els).map(function(e) { return e.value; });
 }
 
+// ── Main ride finder ──────────────────────────────────────
 async function findRide() {
-  const location = document.getElementById('location').value || 'San Francisco, CA';
-  const date = document.getElementById('rideDate').value;
-  const duration = getSelected('duration');
-  const distance = getSelected('distance');
-  const difficulty = getSelected('difficulty');
-  const tire = getSelected('tire');
-  const wind = getSelected('wind');
-  const daylight = getSelected('daylight');
-  const weatherNotes = document.getElementById('weatherNotes').value;
-  const roadQualities = getChecked('roadquality');
-  const apiKey = document.getElementById('apiKey').value.trim();
+  var location  = document.getElementById('location').value.trim() || 'San Francisco, CA';
+  var date      = document.getElementById('rideDate').value;
+  var duration  = getSelected('duration') || '1.5 hours';
+  var distance  = getSelected('distance') || '20-35 miles';
+  var difficulty = getSelected('difficulty') || 'Moderate';
+  var tire      = getSelected('tire') || 'endurance road tires 28-32mm';
+  var wind      = getSelected('wind') || 'light under 15mph';
+  var daylight  = getSelected('daylight') || 'Morning';
+  var notes     = document.getElementById('weatherNotes').value.trim();
+  var roads     = getChecked('roadquality');
+  var apiKey    = document.getElementById('apiKey').value.trim();
+  var isKahuna  = window.kahunaMode;
 
   if (!apiKey) {
-    alert('Add your Anthropic API key to get started — grab one free at console.anthropic.com');
+    alert('Paste your Anthropic API key first — get one free at console.anthropic.com');
+    document.getElementById('apiKey').focus();
     return;
   }
 
-  const btn = document.getElementById('findBtn');
+  var btn = document.getElementById('findBtn');
   btn.disabled = true;
   btn.textContent = isKahuna ? '🌊 CHARTING THE EXPEDITION…' : 'THE DUDE IS VIBING…';
 
-  const resultsEl = document.getElementById('results');
-  resultsEl.innerHTML = `
-    <div class="loading-state">
-      <div class="spinner-wrap">
-        <div class="spinner"></div>
-        <div class="spinner-inner">🏄</div>
-      </div>
-      <div class="loading-text">${isKahuna ? 'PLANNING YOUR EXPEDITION' : 'READING THE VIBE'}</div>
-      <div class="loading-dude">${isKahuna
+  var resultsEl = document.getElementById('results');
+  resultsEl.innerHTML = '<div class="loading-state">'
+    + '<div class="spinner-wrap"><div class="spinner"></div><div class="spinner-inner">🏄</div></div>'
+    + '<div class="loading-text">' + (isKahuna ? 'PLANNING YOUR EXPEDITION' : 'READING THE VIBE') + '</div>'
+    + '<div class="loading-dude">' + (isKahuna
         ? '"Big Kahuna mode… this is a serious expedition. Checking the long roads, the remote passes, the all-day routes…"'
-        : '"Let me feel out the roads, check the weather energy, and find you something that flows…"'
-      }</div>
-      <div class="loading-steps">
-        🛰 Checking weather &amp; wind conditions<br>
-        🌅 Calculating sunrise / sunset<br>
-        🗺 Mapping routes from your front door<br>
-        🚲 Matching roads to your tire &amp; vibe<br>
-        ⏰ Finding your perfect departure window
-      </div>
-    </div>
-  `;
+        : '"Let me feel out the roads, check the weather energy, and find you something that flows…"')
+    + '</div>'
+    + '<div class="loading-steps">🛰 Checking weather &amp; wind<br>🌅 Calculating sunrise / sunset<br>🗺 Mapping from your front door<br>🚲 Matching roads to your tires<br>⏰ Finding your departure window</div>'
+    + '</div>';
 
-  const kahunaExtra = isKahuna ? `
-This is BIG KAHUNA mode — a full expedition. Recommend an epic 50+ mile route, possibly a point-to-point or multi-segment journey. This should feel like a real cycling expedition — significant, memorable, and worthy of the day. Include more detailed route narrative. The Deep Dude should be visibly stoked about this one.` : '';
+  var kahunaNote = isKahuna
+    ? 'BIG KAHUNA MODE — full expedition, 50+ miles, epic multi-segment journey. The Deep Dude is visibly stoked.'
+    : '';
 
-  const prompt = `You are The Deep Dude — a chill, wise, deeply experienced cycling route advisor for LEGS (Local Expert Guided Cycling). You're not just a route planner, you're a vibe setter. You speak in relaxed, stoked language — never rushed, always thoughtful. You know every great road worth riding: The Wiggle and Marin Headlands in SF, the rolling lanes of Marin County, PCH, the back roads of Boulder, the greenways of Austin, quiet farm roads outside every city. You always route riders FROM their exact front door, using bike-friendly corridors, protected lanes, and low-traffic streets to get them flowing smoothly onto the good stuff.
+  var roadList = roads.length ? roads.join(', ') : 'good roads, chill vibe';
 
-You use the word "expedition" instead of "adventure" — riding is an expedition, not just a workout.
-${kahunaExtra}
-
-User's Front Door: ${location}
-Date: ${date}
-Time Available: ${duration}
-Distance: ${distance}
-Difficulty: ${difficulty}
-Tire / Bike Type: ${tire}
-Wind Tolerance: ${wind}
-Daylight Vibe: ${daylight}
-Road Vibes They Love: ${roadQualities.join(', ') || 'good roads, chill vibe'}
-Extra Notes: ${weatherNotes || 'none'}
-
-Factor in tire width seriously — skinny 23-25mm road tires cannot handle rough surfaces; gravel and MTB tires open up expedition terrain. Route them from their front door using real known local bike-friendly corridors.
-
-Return ONLY valid JSON (no markdown fences):
-{
-  "rideName": "Name of the route",
-  "rideSubtitle": "One evocative chill line about this ride",
-  "dudeQuote": "The Deep Dude's personal endorsement — stoked, chill, 1-2 sentences in his voice. Use 'expedition' not 'adventure'.",
-  "isKahuna": ${isKahuna},
-  "distance": "e.g. 28 miles",
-  "elevation": "e.g. 1,800 ft",
-  "duration": "e.g. 2:15",
-  "difficulty": "e.g. Moderate",
-  "surfaceType": "e.g. 90% smooth tarmac, some packed gravel",
-  "tireFitRating": "great",
-  "tireFitNote": "One sentence on how well their tire matches this route",
-  "optimalTime": "e.g. 8:30 AM",
-  "optimalTimeReason": "Why this time has the best vibe",
-  "sunrise": "e.g. 6:42 AM",
-  "sunset": "e.g. 5:58 PM",
-  "weather": {
-    "temp": "e.g. 58°F",
-    "conditions": "e.g. Partly cloudy",
-    "wind": "e.g. 8 mph WSW",
-    "humidity": "e.g. 45%",
-    "uvIndex": "e.g. 4 (Moderate)"
-  },
-  "routeTags": ["Low Traffic", "Iconic Route", "Smooth Tarmac", "Expedition Ready"],
-  "departureDirections": [
-    "Head [direction] on [street] — [short note about this street]",
-    "Turn [left/right] onto [street], a quiet low-traffic lane",
-    "Pick up [named path/corridor/greenway] heading [direction]",
-    "You're now flowing — [route name] begins here"
-  ],
-  "description": "2-3 sentences capturing the expedition feel, terrain, and highlights in The Deep Dude's voice",
-  "timeSlots": [
-    { "time": "7:00 AM", "label": "Early expedition start", "score": 80, "note": "Cool, quiet roads" },
-    { "time": "8:30 AM", "label": "Peak vibe window", "score": 95, "note": "Best all-round conditions" },
-    { "time": "10:30 AM", "label": "Late start", "score": 66, "note": "Warming up, some traffic" }
-  ],
-  "tips": [
-    "Route-specific tip from The Deep Dude — a local secret, shortcut, or heads-up",
-    "Gear or clothing suggestion for today's vibe and weather",
-    "Road surface note matched to their tire choice",
-    "Best stop, view, or expedition highlight on this route"
-  ],
-  "altRides": [
-    { "name": "Chill alternative", "distance": "XX mi", "vibe": "Shorter / more mellow expedition", "tireFit": "great", "reason": "For when you want to keep it smooth and low-key" },
-    { "name": "Big send alternative", "distance": "XX mi", "vibe": "Longer / more epic expedition", "tireFit": "good", "reason": "For when the energy is right for something bigger" }
-  ]
-}`;
+  var prompt = 'You are The Deep Dude — a chill, wise, deeply experienced cycling route advisor for LEGS (Local Expert Guided Cycling). '
+    + 'You are a vibe setter, not just a route planner. You speak in relaxed, stoked language — never rushed, always thoughtful. '
+    + 'You know every great road worth riding: The Wiggle and Marin Headlands in SF, PCH, back roads of Boulder, greenways of Austin, farm roads outside every city. '
+    + 'You always route riders FROM their exact front door using bike-friendly corridors, protected lanes, and low-traffic streets. '
+    + 'You use the word expedition instead of adventure.
+'
+    + (kahunaNote ? kahunaNote + '
+' : '')
+    + '
+Rider details:
+'
+    + '- Start address: ' + location + '
+'
+    + '- Date: ' + date + '
+'
+    + '- Time available: ' + duration + '
+'
+    + '- Distance: ' + distance + '
+'
+    + '- Difficulty: ' + difficulty + '
+'
+    + '- Tire/bike: ' + tire + '
+'
+    + '- Wind tolerance: ' + wind + '
+'
+    + '- Daylight preference: ' + daylight + '
+'
+    + '- Road vibes: ' + roadList + '
+'
+    + '- Extra notes: ' + (notes || 'none') + '
+'
+    + '
+Respond ONLY with valid JSON (no markdown, no backtick fences) in this exact shape:
+'
+    + '{'
+    + '"rideName":"Route name",'
+    + '"rideSubtitle":"One chill evocative line",'
+    + '"dudeQuote":"The Deep Dude 1-2 sentence endorsement using expedition not adventure",'
+    + '"isKahuna":' + isKahuna + ','
+    + '"distance":"e.g. 28 miles",'
+    + '"elevation":"e.g. 1800 ft",'
+    + '"duration":"e.g. 2:15",'
+    + '"difficulty":"e.g. Moderate",'
+    + '"surfaceType":"e.g. 90% smooth tarmac",'
+    + '"tireFitRating":"great",'
+    + '"tireFitNote":"One sentence on tire match",'
+    + '"optimalTime":"e.g. 8:30 AM",'
+    + '"optimalTimeReason":"Why this time is ideal",'
+    + '"sunrise":"e.g. 6:42 AM",'
+    + '"sunset":"e.g. 5:58 PM",'
+    + '"weather":{"temp":"e.g. 58F","conditions":"e.g. Partly cloudy","wind":"e.g. 8 mph WSW","humidity":"e.g. 45%","uvIndex":"e.g. 4 Moderate"},'
+    + '"routeTags":["Low Traffic","Iconic Route","Smooth Tarmac"],'
+    + '"departureDirections":["Step 1","Step 2","Step 3","Step 4"],'
+    + '"description":"2-3 sentence expedition description in The Deep Dude voice",'
+    + '"timeSlots":['
+    + '{"time":"7:00 AM","label":"Early start","score":80,"note":"Cool quiet roads"},'
+    + '{"time":"8:30 AM","label":"Peak vibe","score":95,"note":"Best conditions"},'
+    + '{"time":"10:30 AM","label":"Late start","score":65,"note":"Warming up"}'
+    + '],'
+    + '"tips":["Tip 1","Tip 2","Tip 3","Tip 4"],'
+    + '"altRides":['
+    + '{"name":"Alt 1","distance":"XX mi","vibe":"Mellow expedition","tireFit":"great","reason":"When you want to keep it smooth"},'
+    + '{"name":"Alt 2","distance":"XX mi","vibe":"Epic expedition","tireFit":"good","reason":"When the energy is right for something bigger"}'
+    + ']'
+    + '}';
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
+    var response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-iab-required": "true"
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-iab-required': 'true'
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5",
+        model: 'claude-sonnet-4-5',
         max_tokens: 2000,
-        messages: [{ role: "user", content: prompt }]
+        messages: [{ role: 'user', content: prompt }]
       })
     });
 
-    const data = await response.json();
+    var data = await response.json();
 
-    if (data.error) {
-      const msg = data.error.message || JSON.stringify(data.error);
-      throw new Error(\`API \${response.status}: \${msg}\`);
+    if (!response.ok || data.error) {
+      var errMsg = (data.error && data.error.message) ? data.error.message : ('HTTP ' + response.status);
+      throw new Error(errMsg);
     }
 
     if (!data.content || !data.content.length) {
-      throw new Error(\`Unexpected response: \${JSON.stringify(data).slice(0, 300)}\`);
+      throw new Error('Empty response from API — no content returned');
     }
 
-    const text = data.content.map(i => i.text || '').join('');
-    const clean = text.replace(/```json|```/g, '').trim();
+    var rawText = data.content.map(function(i) { return i.text || ''; }).join('');
+    var cleaned = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
 
-    let rec;
+    // Extract just the JSON object if there's extra text
+    var jsonStart = cleaned.indexOf('{');
+    var jsonEnd = cleaned.lastIndexOf('}');
+    if (jsonStart !== -1 && jsonEnd !== -1) {
+      cleaned = cleaned.slice(jsonStart, jsonEnd + 1);
+    }
+
+    var rec;
     try {
-      rec = JSON.parse(clean);
-    } catch (parseErr) {
-      throw new Error(\`JSON parse failed — raw: \${clean.slice(0, 300)}\`);
+      rec = JSON.parse(cleaned);
+    } catch(pe) {
+      throw new Error('Could not parse response. Raw: ' + cleaned.slice(0, 200));
     }
 
     renderRecommendation(rec);
-  } catch (err) {
-    resultsEl.innerHTML = \`<div style="padding:20px"><div class="error-box">
-      <strong>⚠️ The Deep Dude hit a snag</strong><br><br>
-      \${err.message}<br><br>
-      <small style="opacity:0.7;line-height:2;display:block">
-        • API key must start with <code style="background:rgba(255,255,255,0.1);padding:1px 5px;border-radius:3px">sk-ant-</code><br>
-        • Get or check your key at <strong>console.anthropic.com → API Keys</strong><br>
-        • Make sure your account has credits remaining
-      </small>
-    </div></div>\`;
+
+  } catch(err) {
+    resultsEl.innerHTML = '<div style="padding:20px"><div class="error-box">'
+      + '<strong>⚠️ The Deep Dude hit a snag</strong><br><br>'
+      + err.message + '<br><br>'
+      + '<small style="opacity:0.75;line-height:2.2;display:block">'
+      + '• Your API key must start with <code style="background:rgba(255,255,255,0.1);padding:1px 6px;border-radius:3px">sk-ant-</code><br>'
+      + '• Get or check your key at <strong>console.anthropic.com → API Keys</strong><br>'
+      + '• Make sure your account has credits (new accounts get free credits)<br>'
+      + '• If using Netlify/GitHub Pages, the browser must allow the API domain'
+      + '</small></div></div>';
   }
 
   btn.disabled = false;
   btn.textContent = isKahuna ? '🌊 LAUNCH THE EXPEDITION' : 'VIBE CHECK THE ROUTE';
 }
 
+// ── Render result ─────────────────────────────────────────
 function tireFitLabel(fit) {
   if (fit === 'great') return '✅ Great tire match for this expedition';
   if (fit === 'good')  return '✔️ Good match — a few sections to watch';
-  return '⚠️ Tough match — rough patches ahead for your tires';
+  return '⚠️ Rough match — some patches that will challenge your tires';
 }
 
 function renderRecommendation(r) {
-  const el = document.getElementById('results');
-  const tags = (r.routeTags || []).slice(0, 4);
-  const tagColors = ['tag-pink', 'tag-cyan', 'tag-amber', 'tag-blue'];
-  const kahuna = !!r.isKahuna;
+  var el = document.getElementById('results');
+  var tags = (r.routeTags || []).slice(0, 4);
+  var tagColors = ['tag-pink', 'tag-cyan', 'tag-amber', 'tag-blue'];
+  var kahuna = !!r.isKahuna;
+  var fit = r.tireFitRating || 'great';
 
-  el.innerHTML = `
-    <div class="rec-card ${kahuna ? 'is-kahuna' : ''}">
-      <div class="rec-header ${kahuna ? 'kahuna-header' : ''}">
+  var tagsHtml = tags.map(function(t, i) {
+    return '<span class="route-tag ' + tagColors[i % 4] + '">' + t + '</span>';
+  }).join('');
 
-        ${kahuna ? `
-          <div class="kahuna-banner">
-            🌊 BIG KAHUNA EXPEDITION — FULL SEND
-          </div>
-        ` : ''}
+  var dirHtml = (r.departureDirections || []).map(function(step, i) {
+    return '<div class="dir-step"><div class="dir-step-num">' + (i+1) + '</div><span>' + step + '</span></div>';
+  }).join('');
 
-        <div class="dude-says">
-          <div class="dude-says-avatar">🏄</div>
-          <div class="dude-bubble"><strong>The Deep Dude:</strong> "${r.dudeQuote}"</div>
-        </div>
+  var slotsHtml = (r.timeSlots || []).map(function(slot, i) {
+    var best = i === 1;
+    return '<div class="time-slot' + (best ? ' best' : '') + '">'
+      + (best ? '<div class="best-star">★ PEAK VIBE</div>' : '')
+      + '<div class="time-slot-time">' + slot.time + '</div>'
+      + '<div class="time-slot-desc">' + slot.label + '</div>'
+      + '<div class="score-bar"><div class="score-fill" style="width:' + slot.score + '%"></div></div>'
+      + '<div class="time-slot-desc">' + slot.note + '</div>'
+      + '</div>';
+  }).join('');
 
-        <div class="ride-name">${r.rideName}</div>
-        <div class="ride-subtitle">${r.rideSubtitle}</div>
-        <div style="margin-top:14px">
-          <div class="optimal-time-badge">⏰ Roll out at ${r.optimalTime} — ${r.optimalTimeReason}</div>
-        </div>
-        <div class="route-tags">
-          ${tags.map((t, i) => `<span class="route-tag ${tagColors[i % 4]}">${t}</span>`).join('')}
-        </div>
-      </div>
+  var tipsHtml = (r.tips || []).map(function(tip) {
+    return '<div class="tip"><div class="tip-dot"></div><span>' + tip + '</span></div>';
+  }).join('');
 
-      <div class="rec-stats">
-        <div class="stat-cell">
-          <div class="stat-val">${r.distance}</div>
-          <div class="stat-lbl">Distance</div>
-        </div>
-        <div class="stat-cell">
-          <div class="stat-val">${r.elevation}</div>
-          <div class="stat-lbl">Elevation</div>
-        </div>
-        <div class="stat-cell">
-          <div class="stat-val">${r.duration}</div>
-          <div class="stat-lbl">Est. Time</div>
-        </div>
-        <div class="stat-cell">
-          <div class="stat-val">${r.difficulty}</div>
-          <div class="stat-lbl">Difficulty</div>
-        </div>
-      </div>
+  var altHtml = (r.altRides || []).map(function(alt) {
+    return '<div class="alt-card">'
+      + '<div class="alt-name">' + alt.name + '</div>'
+      + '<div class="alt-meta">' + alt.distance + ' · ' + alt.vibe + '</div>'
+      + '<div class="alt-reason">' + alt.reason + '</div>'
+      + '</div>';
+  }).join('');
 
-      <div class="rec-body">
+  var w = r.weather || {};
 
-        <div class="section-head">Today's Conditions</div>
-        <div class="weather-row">
-          <div class="weather-chip"><span>🌡️</span>${r.weather.temp}</div>
-          <div class="weather-chip"><span>⛅</span>${r.weather.conditions}</div>
-          <div class="weather-chip"><span>💨</span>${r.weather.wind}</div>
-          <div class="weather-chip"><span>💧</span>${r.weather.humidity}</div>
-          <div class="weather-chip"><span>☀️</span>UV ${r.weather.uvIndex}</div>
-          <div class="weather-chip"><span>🌅</span>${r.sunrise}</div>
-          <div class="weather-chip"><span>🌇</span>${r.sunset}</div>
-        </div>
+  el.innerHTML = '<div class="rec-card' + (kahuna ? ' is-kahuna' : '') + '">'
 
-        <div class="divider"></div>
+    + '<div class="rec-header' + (kahuna ? ' kahuna-header' : '') + '">'
+    + (kahuna ? '<div class="kahuna-banner">🌊 BIG KAHUNA EXPEDITION — FULL SEND</div>' : '')
+    + '<div class="dude-says">'
+    +   '<div class="dude-says-avatar">🏄</div>'
+    +   '<div class="dude-bubble"><strong>The Deep Dude:</strong> "' + (r.dudeQuote || '') + '"</div>'
+    + '</div>'
+    + '<div class="ride-name">' + (r.rideName || 'Your Ride') + '</div>'
+    + '<div class="ride-subtitle">' + (r.rideSubtitle || '') + '</div>'
+    + '<div style="margin-top:14px"><div class="optimal-time-badge">⏰ Roll out at ' + r.optimalTime + ' — ' + r.optimalTimeReason + '</div></div>'
+    + '<div class="route-tags">' + tagsHtml + '</div>'
+    + '</div>'
 
-        <div class="section-head">🔵 Tire Match — ${r.surfaceType}</div>
-        <div class="tire-fit ${r.tireFitRating || 'great'}">${tireFitLabel(r.tireFitRating)} — ${r.tireFitNote}</div>
+    + '<div class="rec-stats">'
+    + '<div class="stat-cell"><div class="stat-val">' + (r.distance||'—') + '</div><div class="stat-lbl">Distance</div></div>'
+    + '<div class="stat-cell"><div class="stat-val">' + (r.elevation||'—') + '</div><div class="stat-lbl">Elevation</div></div>'
+    + '<div class="stat-cell"><div class="stat-val">' + (r.duration||'—') + '</div><div class="stat-lbl">Est. Time</div></div>'
+    + '<div class="stat-cell"><div class="stat-val">' + (r.difficulty||'—') + '</div><div class="stat-lbl">Difficulty</div></div>'
+    + '</div>'
 
-        <div class="divider"></div>
+    + '<div class="rec-body">'
 
-        <div class="section-head">🚪 From Your Front Door</div>
-        <div class="directions-box">
-          <div class="dir-title">🗺️ The Deep Dude's Departure Line</div>
-          <div class="dir-steps">
-            ${(r.departureDirections || []).map((step, i) => `
-              <div class="dir-step">
-                <div class="dir-step-num">${i + 1}</div>
-                <span>${step}</span>
-              </div>
-            `).join('')}
-          </div>
-        </div>
+    + '<div class="section-head">Today's Conditions</div>'
+    + '<div class="weather-row">'
+    + '<div class="weather-chip"><span>🌡️</span>' + (w.temp||'') + '</div>'
+    + '<div class="weather-chip"><span>⛅</span>' + (w.conditions||'') + '</div>'
+    + '<div class="weather-chip"><span>💨</span>' + (w.wind||'') + '</div>'
+    + '<div class="weather-chip"><span>💧</span>' + (w.humidity||'') + '</div>'
+    + '<div class="weather-chip"><span>☀️</span>UV ' + (w.uvIndex||'') + '</div>'
+    + '<div class="weather-chip"><span>🌅</span>' + (r.sunrise||'') + '</div>'
+    + '<div class="weather-chip"><span>🌇</span>' + (r.sunset||'') + '</div>'
+    + '</div>'
 
-        <div class="section-head">The Expedition</div>
-        <div class="ride-desc">${r.description}</div>
+    + '<div class="divider"></div>'
+    + '<div class="section-head">🔵 Tire Match — ' + (r.surfaceType||'') + '</div>'
+    + '<div class="tire-fit ' + fit + '">' + tireFitLabel(fit) + ' — ' + (r.tireFitNote||'') + '</div>'
 
-        <div class="divider"></div>
+    + '<div class="divider"></div>'
+    + '<div class="section-head">🚪 From Your Front Door</div>'
+    + '<div class="directions-box">'
+    + '<div class="dir-title">🗺️ The Deep Dude's Departure Line</div>'
+    + '<div class="dir-steps">' + dirHtml + '</div>'
+    + '</div>'
 
-        <div class="section-head">Best Windows to Roll</div>
-        <div class="time-grid">
-          ${r.timeSlots.map((slot, i) => `
-            <div class="time-slot ${i === 1 ? 'best' : ''}">
-              ${i === 1 ? '<div class="best-star">★ PEAK VIBE</div>' : ''}
-              <div class="time-slot-time">${slot.time}</div>
-              <div class="time-slot-desc">${slot.label}</div>
-              <div class="score-bar"><div class="score-fill" style="width:${slot.score}%"></div></div>
-              <div class="time-slot-desc">${slot.note}</div>
-            </div>
-          `).join('')}
-        </div>
+    + '<div class="section-head">The Expedition</div>'
+    + '<div class="ride-desc">' + (r.description||'') + '</div>'
 
-        <div class="divider"></div>
+    + '<div class="divider"></div>'
+    + '<div class="section-head">Best Windows to Roll</div>'
+    + '<div class="time-grid">' + slotsHtml + '</div>'
 
-        <div class="section-head">The Deep Dude's Tips</div>
-        <div class="tips-list">
-          ${(r.tips || []).map(tip => `
-            <div class="tip"><div class="tip-dot"></div><span>${tip}</span></div>
-          `).join('')}
-        </div>
+    + '<div class="divider"></div>'
+    + '<div class="section-head">The Deep Dude's Tips</div>'
+    + '<div class="tips-list">' + tipsHtml + '</div>'
 
-        <div class="divider"></div>
+    + '<div class="divider"></div>'
+    + '<div class="section-head">Other Expedition Options</div>'
+    + '<div class="alt-grid">' + altHtml + '</div>'
 
-        <div class="section-head">Other Expedition Options</div>
-        <div class="alt-grid">
-          ${(r.altRides || []).map(alt => `
-            <div class="alt-card">
-              <div class="alt-name">${alt.name}</div>
-              <div class="alt-meta">${alt.distance} · ${alt.vibe}</div>
-              <div class="alt-reason">${alt.reason}</div>
-            </div>
-          `).join('')}
-        </div>
-
-      </div>
-    </div>
-  `;
+    + '</div></div>';
 }
 </script>
 </body>
