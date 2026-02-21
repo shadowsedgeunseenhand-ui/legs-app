@@ -1,0 +1,1498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LEGS — Local Expert Guided Cycling</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #060608;
+    --surface: #0e0c12;
+    --surface2: #160f1c;
+    --surface3: #1e1428;
+    --border: #2e1e3e;
+    --pink: #ff2d78;
+    --pink-bright: #ff6ba8;
+    --pink-dim: #5a1030;
+    --pink-glow: rgba(255,45,120,0.18);
+    --pink-soft: rgba(255,45,120,0.08);
+    --amber: #f0b429;
+    --red: #e05252;
+    --blue: #5ba8e0;
+    --cyan: #2de8d4;
+    --text: #f0e8f4;
+    --text-dim: #6a4878;
+    --text-mid: #c0a0cc;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,45,120,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,45,120,0.03) 1px, transparent 1px);
+    background-size: 52px 52px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Ambient glow blob */
+  body::after {
+    content: '';
+    position: fixed;
+    top: -200px;
+    left: -200px;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(255,45,120,0.06) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ===== HEADER ===== */
+  header {
+    position: relative;
+    z-index: 2;
+    padding: 22px 40px 20px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(255,45,120,0.04) 0%, transparent 100%);
+  }
+
+  .logo-block { display: flex; align-items: baseline; gap: 14px; }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 56px;
+    letter-spacing: 10px;
+    color: var(--pink);
+    line-height: 1;
+    text-shadow: 0 0 40px rgba(255,45,120,0.5), 0 0 80px rgba(255,45,120,0.2);
+  }
+
+  .logo-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    font-weight: 500;
+    line-height: 1.5;
+  }
+
+  /* Deep Dude header pill */
+  .dude-header {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 50px;
+    padding: 8px 20px 8px 8px;
+  }
+
+  .dude-avatar {
+    width: 42px;
+    height: 42px;
+    background: linear-gradient(135deg, var(--pink-dim), #1a0820);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    border: 2px solid var(--pink-dim);
+    flex-shrink: 0;
+  }
+
+  .dude-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: 0.5px;
+  }
+
+  .dude-title {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+
+  /* Big Kahuna badge in header */
+  .kahuna-badge {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #1a0010, #2a0020);
+    border: 1px solid var(--pink);
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16px;
+    letter-spacing: 2px;
+    color: var(--pink);
+    animation: kahunaGlow 2s ease-in-out infinite;
+    box-shadow: 0 0 20px rgba(255,45,120,0.2);
+  }
+
+  .kahuna-badge.visible { display: flex; }
+
+  @keyframes kahunaGlow {
+    0%, 100% { box-shadow: 0 0 20px rgba(255,45,120,0.2); }
+    50% { box-shadow: 0 0 35px rgba(255,45,120,0.4); }
+  }
+
+  /* ===== MAIN LAYOUT ===== */
+  .main {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 430px 1fr;
+    min-height: calc(100vh - 97px);
+  }
+
+  .panel {
+    padding: 26px 30px;
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    max-height: calc(100vh - 97px);
+  }
+
+  .panel-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 17px;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    margin-bottom: 20px;
+    text-transform: uppercase;
+  }
+
+  .field { margin-bottom: 16px; }
+
+  label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 7px;
+    font-weight: 600;
+  }
+
+  input[type="text"], input[type="password"], input[type="number"], select {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 11px 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    border-radius: 6px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  input:focus, select:focus {
+    border-color: var(--pink-dim);
+    box-shadow: 0 0 0 3px rgba(255,45,120,0.08);
+  }
+
+  select option { background: #110a18; }
+
+  /* Segmented controls */
+  .seg-group {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .seg-group input[type="radio"] { display: none; }
+
+  .seg-group label {
+    flex: 1;
+    text-align: center;
+    padding: 9px 3px;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    background: var(--surface);
+    color: var(--text-dim);
+    margin: 0;
+    transition: all 0.15s;
+    border-right: 1px solid var(--border);
+    white-space: nowrap;
+    font-weight: 500;
+  }
+
+  .seg-group label:last-of-type { border-right: none; }
+
+  .seg-group input:checked + label {
+    background: var(--pink-dim);
+    color: var(--pink);
+    font-weight: 700;
+  }
+
+  /* Big Kahuna special option */
+  .kahuna-option input[type="radio"] { display: none; }
+
+  .kahuna-option label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 11px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 8px;
+  }
+
+  .kahuna-option label:hover {
+    border-color: var(--pink-dim);
+    color: var(--pink-bright);
+    background: var(--surface2);
+  }
+
+  .kahuna-option input:checked + label {
+    background: linear-gradient(135deg, #2a0018, #1a0010);
+    border-color: var(--pink);
+    color: var(--pink);
+    box-shadow: 0 0 20px rgba(255,45,120,0.15), inset 0 0 20px rgba(255,45,120,0.05);
+    animation: kahunaGlow 2s ease-in-out infinite;
+  }
+
+  /* Chip multi-select */
+  .chip-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .chip-group input[type="checkbox"] { display: none; }
+
+  .chip-group label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    font-size: 12px;
+    letter-spacing: 0.3px;
+    text-transform: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    margin: 0;
+    transition: all 0.15s;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+
+  .chip-group input:checked + label {
+    background: var(--pink-dim);
+    border-color: var(--pink);
+    color: var(--pink-bright);
+  }
+
+  /* Tire selector */
+  .tire-selector {
+    display: flex;
+    gap: 7px;
+    flex-wrap: wrap;
+  }
+
+  .tire-option input[type="radio"] { display: none; }
+
+  .tire-option label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    padding: 10px 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    min-width: 66px;
+    text-align: center;
+    letter-spacing: 0;
+    text-transform: none;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin: 0;
+    transition: all 0.15s;
+    font-weight: 500;
+  }
+
+  .tire-option input:checked + label {
+    background: var(--pink-dim);
+    border-color: var(--pink);
+    color: var(--pink-bright);
+  }
+
+  .tire-icon { font-size: 20px; display: block; line-height: 1; }
+  .tire-size { font-family: 'DM Mono', monospace; font-size: 9.5px; opacity: 0.65; }
+
+  /* API key info */
+  .key-hint {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 5px;
+    line-height: 1.5;
+  }
+
+  /* CTA Buttons */
+  .find-btn {
+    width: 100%;
+    margin-top: 10px;
+    padding: 16px;
+    background: var(--pink);
+    color: #060608;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 5px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .find-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.5s;
+  }
+
+  .find-btn:hover::before { transform: translateX(100%); }
+  .find-btn:hover {
+    background: var(--pink-bright);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 28px rgba(255,45,120,0.35);
+  }
+  .find-btn:active { transform: translateY(0); box-shadow: none; }
+  .find-btn:disabled {
+    background: var(--pink-dim);
+    color: var(--text-dim);
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  /* Big Kahuna button variant */
+  .find-btn.kahuna-mode {
+    background: linear-gradient(135deg, var(--pink), #a0006a);
+    box-shadow: 0 0 30px rgba(255,45,120,0.25);
+    font-size: 20px;
+    letter-spacing: 3px;
+  }
+
+  .find-btn.kahuna-mode:hover {
+    background: linear-gradient(135deg, var(--pink-bright), var(--pink));
+    box-shadow: 0 8px 40px rgba(255,45,120,0.45);
+  }
+
+  /* Divider */
+  .seg-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 18px 0 14px;
+  }
+
+  /* ===== RESULTS ===== */
+  .results {
+    padding: 28px 36px;
+    overflow-y: auto;
+    max-height: calc(100vh - 97px);
+  }
+
+  /* Welcome state */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 70%;
+    gap: 20px;
+  }
+
+  .dude-welcome {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    max-width: 400px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .dude-welcome::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at top left, rgba(255,45,120,0.05) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .dude-big-avatar {
+    width: 68px;
+    height: 68px;
+    background: linear-gradient(135deg, var(--pink-dim), #0e0818);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 34px;
+    border: 2px solid var(--pink-dim);
+    margin-bottom: 18px;
+    box-shadow: 0 0 30px rgba(255,45,120,0.15);
+  }
+
+  .dude-welcome h3 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 3px;
+    color: var(--pink);
+    margin-bottom: 4px;
+    text-shadow: 0 0 20px rgba(255,45,120,0.4);
+  }
+
+  .dude-welcome .dude-subtitle {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 16px;
+  }
+
+  .dude-welcome p {
+    font-size: 14px;
+    line-height: 1.75;
+    color: var(--text-mid);
+    font-style: italic;
+  }
+
+  /* ===== RECOMMENDATION CARD ===== */
+  .rec-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    animation: slideUp 0.4s ease;
+  }
+
+  .rec-card.is-kahuna {
+    border-color: var(--pink);
+    box-shadow: 0 0 40px rgba(255,45,120,0.12);
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(18px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .rec-header {
+    background: linear-gradient(135deg, #220016 0%, #0e0014 60%);
+    padding: 26px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .rec-header.kahuna-header {
+    background: linear-gradient(135deg, #300020 0%, #180010 60%);
+  }
+
+  .rec-header::before {
+    content: 'LEGS';
+    position: absolute;
+    right: -10px;
+    bottom: -28px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 140px;
+    letter-spacing: 10px;
+    opacity: 0.04;
+    color: var(--pink);
+    pointer-events: none;
+  }
+
+  /* Big Kahuna banner */
+  .kahuna-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: linear-gradient(90deg, rgba(255,45,120,0.15), rgba(255,45,120,0.05));
+    border: 1px solid rgba(255,45,120,0.3);
+    border-radius: 8px;
+    padding: 10px 16px;
+    margin-bottom: 18px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    letter-spacing: 3px;
+    color: var(--pink);
+  }
+
+  /* Deep Dude says bubble */
+  .dude-says {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 18px;
+    align-items: flex-start;
+  }
+
+  .dude-says-avatar {
+    width: 34px;
+    height: 34px;
+    background: linear-gradient(135deg, var(--pink-dim), #0e0818);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    border: 1.5px solid var(--pink-dim);
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .dude-bubble {
+    background: rgba(255,45,120,0.05);
+    border: 1px solid var(--pink-dim);
+    border-radius: 0 10px 10px 10px;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--text-mid);
+    font-style: italic;
+    line-height: 1.65;
+    flex: 1;
+  }
+
+  .dude-bubble strong { color: var(--pink); font-style: normal; font-weight: 600; }
+
+  .ride-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 38px;
+    letter-spacing: 3px;
+    color: var(--pink);
+    line-height: 1;
+    margin-bottom: 5px;
+    text-shadow: 0 0 20px rgba(255,45,120,0.3);
+  }
+
+  .ride-subtitle {
+    font-size: 13px;
+    color: var(--text-mid);
+    margin-bottom: 14px;
+  }
+
+  .optimal-time-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,45,120,0.1);
+    border: 1px solid var(--pink-dim);
+    border-radius: 100px;
+    padding: 7px 16px;
+    font-size: 13px;
+    color: var(--pink-bright);
+    font-weight: 600;
+  }
+
+  .route-tags {
+    display: flex;
+    gap: 7px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+
+  .route-tag {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  .tag-pink  { background: rgba(255,45,120,0.12); color: var(--pink-bright); }
+  .tag-cyan  { background: rgba(45,232,212,0.1);  color: var(--cyan); }
+  .tag-amber { background: rgba(240,180,41,0.12);  color: var(--amber); }
+  .tag-blue  { background: rgba(91,168,224,0.12);  color: var(--blue); }
+
+  /* Stats row */
+  .rec-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .stat-cell {
+    padding: 18px;
+    border-right: 1px solid var(--border);
+    text-align: center;
+  }
+
+  .stat-cell:last-child { border-right: none; }
+
+  .stat-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 3px;
+  }
+
+  .stat-lbl {
+    font-size: 9.5px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  /* Body */
+  .rec-body { padding: 24px; }
+
+  .section-head {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    font-weight: 700;
+  }
+
+  /* Weather chips */
+  .weather-row {
+    display: flex;
+    gap: 7px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+
+  .weather-chip {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 11px;
+    font-size: 12px;
+    color: var(--text-mid);
+  }
+
+  .weather-chip span:first-child { font-size: 14px; }
+
+  /* Departure directions */
+  .directions-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--pink);
+    border-radius: 8px;
+    padding: 16px 18px;
+    margin-bottom: 20px;
+  }
+
+  .dir-title {
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--pink);
+    font-weight: 700;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .dir-steps { display: flex; flex-direction: column; gap: 8px; }
+
+  .dir-step {
+    display: flex;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text-mid);
+    line-height: 1.5;
+    align-items: flex-start;
+  }
+
+  .dir-step-num {
+    width: 20px;
+    height: 20px;
+    background: var(--pink-dim);
+    color: var(--pink-bright);
+    border-radius: 50%;
+    font-size: 10px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* Tire fit */
+  .tire-fit {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 20px;
+  }
+
+  .tire-fit.great { background: rgba(45,232,212,0.08); border: 1px solid rgba(45,232,212,0.3); color: var(--cyan); }
+  .tire-fit.good  { background: rgba(240,180,41,0.08); border: 1px solid rgba(240,180,41,0.3); color: var(--amber); }
+  .tire-fit.ok    { background: rgba(224,82,82,0.08);  border: 1px solid rgba(224,82,82,0.3);  color: var(--red); }
+
+  .ride-desc {
+    font-size: 14px;
+    line-height: 1.8;
+    color: var(--text-mid);
+    margin-bottom: 20px;
+  }
+
+  /* Time slots */
+  .time-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+
+  .time-slot {
+    padding: 12px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    text-align: center;
+    background: var(--surface2);
+  }
+
+  .time-slot.best {
+    border-color: var(--pink);
+    background: rgba(255,45,120,0.06);
+  }
+
+  .time-slot-time {
+    font-family: 'DM Mono', monospace;
+    font-size: 17px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 3px;
+  }
+
+  .time-slot.best .time-slot-time { color: var(--pink); }
+  .time-slot-desc { color: var(--text-dim); font-size: 11px; margin-bottom: 4px; }
+  .best-star { color: var(--pink); font-size: 11px; margin-bottom: 4px; letter-spacing: 1px; }
+
+  .score-bar {
+    height: 3px;
+    background: var(--surface3);
+    border-radius: 2px;
+    margin: 5px 0 4px;
+    overflow: hidden;
+  }
+
+  .score-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--pink);
+    animation: growBar 1s ease forwards;
+  }
+
+  @keyframes growBar { from { width: 0 !important; } }
+
+  /* Tips */
+  .tips-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .tip {
+    display: flex;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text-mid);
+    line-height: 1.6;
+    align-items: flex-start;
+  }
+
+  .tip-dot {
+    width: 5px;
+    height: 5px;
+    background: var(--pink);
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 8px;
+  }
+
+  /* Alt rides */
+  .alt-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .alt-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+
+  .alt-card:hover { border-color: var(--pink-dim); }
+  .alt-name { font-weight: 600; font-size: 13px; color: var(--text); margin-bottom: 4px; }
+  .alt-meta { font-size: 11px; color: var(--text-dim); font-family: 'DM Mono', monospace; margin-bottom: 5px; }
+  .alt-reason { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+
+  .divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+  /* Loading */
+  .loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 70%;
+    gap: 18px;
+    color: var(--text-mid);
+  }
+
+  .spinner-wrap { position: relative; width: 56px; height: 56px; }
+
+  .spinner {
+    width: 56px; height: 56px;
+    border: 2px solid var(--border);
+    border-top-color: var(--pink);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  .spinner-inner {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 22px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-text {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    letter-spacing: 4px;
+    color: var(--pink);
+    text-shadow: 0 0 20px rgba(255,45,120,0.4);
+  }
+
+  .loading-dude {
+    font-size: 13px;
+    color: var(--text-dim);
+    font-style: italic;
+    text-align: center;
+    max-width: 280px;
+    line-height: 1.7;
+  }
+
+  .loading-steps {
+    font-size: 11.5px;
+    color: var(--text-dim);
+    text-align: center;
+    line-height: 2.2;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .error-box {
+    background: rgba(224,82,82,0.07);
+    border: 1px solid rgba(224,82,82,0.25);
+    border-radius: 8px;
+    padding: 20px;
+    color: var(--red);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-block">
+    <div class="logo">LEGS</div>
+    <div class="logo-sub">Local Expert<br>Guided Cycling</div>
+  </div>
+  <div id="kahunaHeaderBadge" class="kahuna-badge">🌊 BIG KAHUNA MODE</div>
+  <div class="dude-header">
+    <div class="dude-avatar">🏄</div>
+    <div>
+      <div class="dude-name">The Deep Dude</div>
+      <div class="dude-title">Vibe Route Advisor</div>
+    </div>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- ===== INPUT PANEL ===== -->
+  <div class="panel">
+    <div class="panel-title">Set Your Vibe</div>
+
+    <div class="field">
+      <label>📍 Your Front Door Address</label>
+      <input type="text" id="location" placeholder="123 Main St, San Francisco, CA">
+    </div>
+
+    <div class="field">
+      <label>📅 Date</label>
+      <input type="text" id="rideDate">
+    </div>
+
+    <div class="field">
+      <label>⏱ Time Available</label>
+      <div class="seg-group">
+        <input type="radio" name="duration" id="d0" value="30 minutes">
+        <label for="d0">30 min</label>
+        <input type="radio" name="duration" id="d1" value="1 hour">
+        <label for="d1">1 hr</label>
+        <input type="radio" name="duration" id="d2" value="1.5 hours" checked>
+        <label for="d2">1.5 hr</label>
+        <input type="radio" name="duration" id="d3" value="2 hours">
+        <label for="d3">2 hr</label>
+        <input type="radio" name="duration" id="d4" value="3 hours">
+        <label for="d4">3 hr</label>
+      </div>
+      <!-- Big Kahuna -->
+      <div class="kahuna-option">
+        <input type="radio" name="duration" id="d5" value="BIG KAHUNA — 3+ hours, 50+ miles, full expedition mode" onchange="toggleKahuna(this)">
+        <label for="d5">🌊 BIG KAHUNA — Full Expedition (3h+ / 50mi+)</label>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>📏 Distance</label>
+      <div class="seg-group">
+        <input type="radio" name="distance" id="dist0" value="5-10 miles">
+        <label for="dist0">5–10mi</label>
+        <input type="radio" name="distance" id="dist1" value="10-20 miles">
+        <label for="dist1">10–20mi</label>
+        <input type="radio" name="distance" id="dist2" value="20-35 miles" checked>
+        <label for="dist2">20–35mi</label>
+        <input type="radio" name="distance" id="dist3" value="35-50 miles">
+        <label for="dist3">35–50mi</label>
+        <input type="radio" name="distance" id="dist4" value="50+ miles">
+        <label for="dist4">50+mi</label>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>💪 Difficulty</label>
+      <div class="seg-group">
+        <input type="radio" name="difficulty" id="dif1" value="Easy / Flat — keep it chill">
+        <label for="dif1">Chill</label>
+        <input type="radio" name="difficulty" id="dif2" value="Moderate" checked>
+        <label for="dif2">Moderate</label>
+        <input type="radio" name="difficulty" id="dif3" value="Challenging">
+        <label for="dif3">Hard</label>
+        <input type="radio" name="difficulty" id="dif4" value="Epic — full send">
+        <label for="dif4">Epic</label>
+      </div>
+    </div>
+
+    <!-- Tire Size -->
+    <div class="field">
+      <label>🔵 Tire Width / Bike Type</label>
+      <div class="tire-selector">
+        <div class="tire-option">
+          <input type="radio" name="tire" id="t1" value="skinny road tires 23-25mm — smooth fresh tarmac only, no chip-seal or rough pavement">
+          <label for="t1">
+            <span class="tire-icon">🔘</span>
+            <span>Road</span>
+            <span class="tire-size">23–25mm</span>
+          </label>
+        </div>
+        <div class="tire-option">
+          <input type="radio" name="tire" id="t2" value="endurance road tires 28-32mm — smooth to moderate pavement, light gravel OK" checked>
+          <label for="t2">
+            <span class="tire-icon">⚪</span>
+            <span>Endurance</span>
+            <span class="tire-size">28–32mm</span>
+          </label>
+        </div>
+        <div class="tire-option">
+          <input type="radio" name="tire" id="t3" value="gravel tires 35-45mm — pavement, gravel, and packed dirt, built for expedition riding">
+          <label for="t3">
+            <span class="tire-icon">🟤</span>
+            <span>Gravel</span>
+            <span class="tire-size">35–45mm</span>
+          </label>
+        </div>
+        <div class="tire-option">
+          <input type="radio" name="tire" id="t4" value="mountain bike tires 2.0-2.4in — off-road, trails, rough terrain, expedition capable">
+          <label for="t4">
+            <span class="tire-icon">⬛</span>
+            <span>MTB</span>
+            <span class="tire-size">2.0–2.4"</span>
+          </label>
+        </div>
+        <div class="tire-option">
+          <input type="radio" name="tire" id="t5" value="fat bike tires 3.8-4.8in — snow, sand, extreme expedition terrain, goes anywhere">
+          <label for="t5">
+            <span class="tire-icon">🔳</span>
+            <span>Fat</span>
+            <span class="tire-size">3.8–4.8"</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Road Quality -->
+    <div class="field">
+      <label>🏆 Most Enjoyable Road Vibes (pick all that apply)</label>
+      <div class="chip-group">
+        <input type="checkbox" id="rq1" name="roadquality" value="smooth fresh tarmac" checked>
+        <label for="rq1">✨ Smooth tarmac</label>
+
+        <input type="checkbox" id="rq2" name="roadquality" value="low traffic quiet lanes" checked>
+        <label for="rq2">🤫 Low traffic</label>
+
+        <input type="checkbox" id="rq3" name="roadquality" value="dedicated cycling lanes and paths">
+        <label for="rq3">🚲 Bike lanes</label>
+
+        <input type="checkbox" id="rq4" name="roadquality" value="scenic views and natural beauty">
+        <label for="rq4">🏔️ Scenic views</label>
+
+        <input type="checkbox" id="rq5" name="roadquality" value="rewarding climbs and epic descents">
+        <label for="rq5">⛰️ Climbs</label>
+
+        <input type="checkbox" id="rq6" name="roadquality" value="coastal and waterfront roads">
+        <label for="rq6">🌊 Coastal</label>
+
+        <input type="checkbox" id="rq7" name="roadquality" value="charming small towns and great café stops">
+        <label for="rq7">☕ Café stops</label>
+
+        <input type="checkbox" id="rq8" name="roadquality" value="famous iconic cycling roads and legendary routes">
+        <label for="rq8">⭐ Iconic roads</label>
+
+        <input type="checkbox" id="rq9" name="roadquality" value="forest and shaded tree canopy roads">
+        <label for="rq9">🌲 Forest canopy</label>
+
+        <input type="checkbox" id="rq10" name="roadquality" value="gravel and unpaved expedition routes">
+        <label for="rq10">🪨 Expedition gravel</label>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>🌬️ Wind Tolerance</label>
+      <div class="seg-group">
+        <input type="radio" name="wind" id="w1" value="calm under 10mph">
+        <label for="w1">Calm</label>
+        <input type="radio" name="wind" id="w2" value="light under 15mph" checked>
+        <label for="w2">Light</label>
+        <input type="radio" name="wind" id="w3" value="moderate under 20mph">
+        <label for="w3">Mod</label>
+        <input type="radio" name="wind" id="w4" value="any wind — stoke level unaffected">
+        <label for="w4">Any</label>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>☀️ Daylight Vibe</label>
+      <div class="seg-group">
+        <input type="radio" name="daylight" id="dl1" value="Sunrise — first light start, golden morning">
+        <label for="dl1">🌅 Dawn</label>
+        <input type="radio" name="daylight" id="dl2" value="Morning" checked>
+        <label for="dl2">Morning</label>
+        <input type="radio" name="daylight" id="dl3" value="Afternoon">
+        <label for="dl3">Afternoon</label>
+        <input type="radio" name="daylight" id="dl4" value="Sunset — golden hour finish, ride into the evening">
+        <label for="dl4">🌇 Sunset</label>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>🔑 Anthropic API Key</label>
+      <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off">
+      <div class="key-hint">Free key at <strong style="color:var(--text-mid)">console.anthropic.com</strong> · stays in your browser only</div>
+    </div>
+
+    <div class="field">
+      <label>💬 Anything else for The Deep Dude?</label>
+      <input type="text" id="weatherNotes" placeholder="e.g. want a chill vibe today, need a coffee stop…">
+    </div>
+
+    <button class="find-btn" id="findBtn" onclick="findRide()">VIBE CHECK THE ROUTE</button>
+  </div>
+
+  <!-- ===== RESULTS PANEL ===== -->
+  <div class="results" id="results">
+    <div class="empty-state">
+      <div class="dude-welcome">
+        <div class="dude-big-avatar">🏄</div>
+        <h3>The Deep Dude</h3>
+        <div class="dude-subtitle">Chill Vibe Route Advisor</div>
+        <p>"Hey, I'm The Deep Dude. I don't just find you a route — I find you the right vibe. Drop your front door, tell me how much time you've got and what kind of ride feels right, and I'll send you out on roads that flow. Low traffic, good tarmac, paths the GPS apps miss. Got three-plus hours? Flip it to Big Kahuna and let's talk expedition."</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// Set default date to today
+const today = new Date();
+document.getElementById('rideDate').value = today.toLocaleDateString('en-US', {weekday:'long', year:'numeric', month:'long', day:'numeric'});
+
+// Track kahuna mode
+let isKahuna = false;
+
+function toggleKahuna(el) {
+  isKahuna = el.checked;
+  const badge = document.getElementById('kahunaHeaderBadge');
+  const btn = document.getElementById('findBtn');
+  if (isKahuna) {
+    badge.classList.add('visible');
+    btn.classList.add('kahuna-mode');
+    btn.textContent = '🌊 LAUNCH THE EXPEDITION';
+    // auto-set distance to 50+mi when Kahuna selected
+    document.getElementById('dist4').checked = true;
+  } else {
+    badge.classList.remove('visible');
+    btn.classList.remove('kahuna-mode');
+    btn.textContent = 'VIBE CHECK THE ROUTE';
+  }
+}
+
+// Listen for non-kahuna duration picks to reset mode
+document.querySelectorAll('input[name="duration"]').forEach(el => {
+  if (el.id !== 'd5') {
+    el.addEventListener('change', () => {
+      isKahuna = false;
+      document.getElementById('kahunaHeaderBadge').classList.remove('visible');
+      const btn = document.getElementById('findBtn');
+      btn.classList.remove('kahuna-mode');
+      btn.textContent = 'VIBE CHECK THE ROUTE';
+    });
+  }
+});
+
+function getSelected(name) {
+  const el = document.querySelector(`input[name="${name}"]:checked`);
+  return el ? el.value : '';
+}
+
+function getChecked(name) {
+  return Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map(e => e.value);
+}
+
+async function findRide() {
+  const location = document.getElementById('location').value || 'San Francisco, CA';
+  const date = document.getElementById('rideDate').value;
+  const duration = getSelected('duration');
+  const distance = getSelected('distance');
+  const difficulty = getSelected('difficulty');
+  const tire = getSelected('tire');
+  const wind = getSelected('wind');
+  const daylight = getSelected('daylight');
+  const weatherNotes = document.getElementById('weatherNotes').value;
+  const roadQualities = getChecked('roadquality');
+  const apiKey = document.getElementById('apiKey').value.trim();
+
+  if (!apiKey) {
+    alert('Add your Anthropic API key to get started — grab one free at console.anthropic.com');
+    return;
+  }
+
+  const btn = document.getElementById('findBtn');
+  btn.disabled = true;
+  btn.textContent = isKahuna ? '🌊 CHARTING THE EXPEDITION…' : 'THE DUDE IS VIBING…';
+
+  const resultsEl = document.getElementById('results');
+  resultsEl.innerHTML = `
+    <div class="loading-state">
+      <div class="spinner-wrap">
+        <div class="spinner"></div>
+        <div class="spinner-inner">🏄</div>
+      </div>
+      <div class="loading-text">${isKahuna ? 'PLANNING YOUR EXPEDITION' : 'READING THE VIBE'}</div>
+      <div class="loading-dude">${isKahuna
+        ? '"Big Kahuna mode… this is a serious expedition. Checking the long roads, the remote passes, the all-day routes…"'
+        : '"Let me feel out the roads, check the weather energy, and find you something that flows…"'
+      }</div>
+      <div class="loading-steps">
+        🛰 Checking weather &amp; wind conditions<br>
+        🌅 Calculating sunrise / sunset<br>
+        🗺 Mapping routes from your front door<br>
+        🚲 Matching roads to your tire &amp; vibe<br>
+        ⏰ Finding your perfect departure window
+      </div>
+    </div>
+  `;
+
+  const kahunaExtra = isKahuna ? `
+This is BIG KAHUNA mode — a full expedition. Recommend an epic 50+ mile route, possibly a point-to-point or multi-segment journey. This should feel like a real cycling expedition — significant, memorable, and worthy of the day. Include more detailed route narrative. The Deep Dude should be visibly stoked about this one.` : '';
+
+  const prompt = `You are The Deep Dude — a chill, wise, deeply experienced cycling route advisor for LEGS (Local Expert Guided Cycling). You're not just a route planner, you're a vibe setter. You speak in relaxed, stoked language — never rushed, always thoughtful. You know every great road worth riding: The Wiggle and Marin Headlands in SF, the rolling lanes of Marin County, PCH, the back roads of Boulder, the greenways of Austin, quiet farm roads outside every city. You always route riders FROM their exact front door, using bike-friendly corridors, protected lanes, and low-traffic streets to get them flowing smoothly onto the good stuff.
+
+You use the word "expedition" instead of "adventure" — riding is an expedition, not just a workout.
+${kahunaExtra}
+
+User's Front Door: ${location}
+Date: ${date}
+Time Available: ${duration}
+Distance: ${distance}
+Difficulty: ${difficulty}
+Tire / Bike Type: ${tire}
+Wind Tolerance: ${wind}
+Daylight Vibe: ${daylight}
+Road Vibes They Love: ${roadQualities.join(', ') || 'good roads, chill vibe'}
+Extra Notes: ${weatherNotes || 'none'}
+
+Factor in tire width seriously — skinny 23-25mm road tires cannot handle rough surfaces; gravel and MTB tires open up expedition terrain. Route them from their front door using real known local bike-friendly corridors.
+
+Return ONLY valid JSON (no markdown fences):
+{
+  "rideName": "Name of the route",
+  "rideSubtitle": "One evocative chill line about this ride",
+  "dudeQuote": "The Deep Dude's personal endorsement — stoked, chill, 1-2 sentences in his voice. Use 'expedition' not 'adventure'.",
+  "isKahuna": ${isKahuna},
+  "distance": "e.g. 28 miles",
+  "elevation": "e.g. 1,800 ft",
+  "duration": "e.g. 2:15",
+  "difficulty": "e.g. Moderate",
+  "surfaceType": "e.g. 90% smooth tarmac, some packed gravel",
+  "tireFitRating": "great",
+  "tireFitNote": "One sentence on how well their tire matches this route",
+  "optimalTime": "e.g. 8:30 AM",
+  "optimalTimeReason": "Why this time has the best vibe",
+  "sunrise": "e.g. 6:42 AM",
+  "sunset": "e.g. 5:58 PM",
+  "weather": {
+    "temp": "e.g. 58°F",
+    "conditions": "e.g. Partly cloudy",
+    "wind": "e.g. 8 mph WSW",
+    "humidity": "e.g. 45%",
+    "uvIndex": "e.g. 4 (Moderate)"
+  },
+  "routeTags": ["Low Traffic", "Iconic Route", "Smooth Tarmac", "Expedition Ready"],
+  "departureDirections": [
+    "Head [direction] on [street] — [short note about this street]",
+    "Turn [left/right] onto [street], a quiet low-traffic lane",
+    "Pick up [named path/corridor/greenway] heading [direction]",
+    "You're now flowing — [route name] begins here"
+  ],
+  "description": "2-3 sentences capturing the expedition feel, terrain, and highlights in The Deep Dude's voice",
+  "timeSlots": [
+    { "time": "7:00 AM", "label": "Early expedition start", "score": 80, "note": "Cool, quiet roads" },
+    { "time": "8:30 AM", "label": "Peak vibe window", "score": 95, "note": "Best all-round conditions" },
+    { "time": "10:30 AM", "label": "Late start", "score": 66, "note": "Warming up, some traffic" }
+  ],
+  "tips": [
+    "Route-specific tip from The Deep Dude — a local secret, shortcut, or heads-up",
+    "Gear or clothing suggestion for today's vibe and weather",
+    "Road surface note matched to their tire choice",
+    "Best stop, view, or expedition highlight on this route"
+  ],
+  "altRides": [
+    { "name": "Chill alternative", "distance": "XX mi", "vibe": "Shorter / more mellow expedition", "tireFit": "great", "reason": "For when you want to keep it smooth and low-key" },
+    { "name": "Big send alternative", "distance": "XX mi", "vibe": "Longer / more epic expedition", "tireFit": "good", "reason": "For when the energy is right for something bigger" }
+  ]
+}`;
+
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-iab-required": "true"
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 2000,
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.message);
+    const text = data.content.map(i => i.text || '').join('');
+    const clean = text.replace(/```json|```/g, '').trim();
+    const rec = JSON.parse(clean);
+    renderRecommendation(rec);
+  } catch (err) {
+    resultsEl.innerHTML = `<div style="padding:20px"><div class="error-box">⚠️ The Deep Dude hit a snag. Check your API key and try again.<br><small style="opacity:0.6;display:block;margin-top:8px">${err.message}</small></div></div>`;
+  }
+
+  btn.disabled = false;
+  btn.textContent = isKahuna ? '🌊 LAUNCH THE EXPEDITION' : 'VIBE CHECK THE ROUTE';
+}
+
+function tireFitLabel(fit) {
+  if (fit === 'great') return '✅ Great tire match for this expedition';
+  if (fit === 'good')  return '✔️ Good match — a few sections to watch';
+  return '⚠️ Tough match — rough patches ahead for your tires';
+}
+
+function renderRecommendation(r) {
+  const el = document.getElementById('results');
+  const tags = (r.routeTags || []).slice(0, 4);
+  const tagColors = ['tag-pink', 'tag-cyan', 'tag-amber', 'tag-blue'];
+  const kahuna = !!r.isKahuna;
+
+  el.innerHTML = `
+    <div class="rec-card ${kahuna ? 'is-kahuna' : ''}">
+      <div class="rec-header ${kahuna ? 'kahuna-header' : ''}">
+
+        ${kahuna ? `
+          <div class="kahuna-banner">
+            🌊 BIG KAHUNA EXPEDITION — FULL SEND
+          </div>
+        ` : ''}
+
+        <div class="dude-says">
+          <div class="dude-says-avatar">🏄</div>
+          <div class="dude-bubble"><strong>The Deep Dude:</strong> "${r.dudeQuote}"</div>
+        </div>
+
+        <div class="ride-name">${r.rideName}</div>
+        <div class="ride-subtitle">${r.rideSubtitle}</div>
+        <div style="margin-top:14px">
+          <div class="optimal-time-badge">⏰ Roll out at ${r.optimalTime} — ${r.optimalTimeReason}</div>
+        </div>
+        <div class="route-tags">
+          ${tags.map((t, i) => `<span class="route-tag ${tagColors[i % 4]}">${t}</span>`).join('')}
+        </div>
+      </div>
+
+      <div class="rec-stats">
+        <div class="stat-cell">
+          <div class="stat-val">${r.distance}</div>
+          <div class="stat-lbl">Distance</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-val">${r.elevation}</div>
+          <div class="stat-lbl">Elevation</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-val">${r.duration}</div>
+          <div class="stat-lbl">Est. Time</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-val">${r.difficulty}</div>
+          <div class="stat-lbl">Difficulty</div>
+        </div>
+      </div>
+
+      <div class="rec-body">
+
+        <div class="section-head">Today's Conditions</div>
+        <div class="weather-row">
+          <div class="weather-chip"><span>🌡️</span>${r.weather.temp}</div>
+          <div class="weather-chip"><span>⛅</span>${r.weather.conditions}</div>
+          <div class="weather-chip"><span>💨</span>${r.weather.wind}</div>
+          <div class="weather-chip"><span>💧</span>${r.weather.humidity}</div>
+          <div class="weather-chip"><span>☀️</span>UV ${r.weather.uvIndex}</div>
+          <div class="weather-chip"><span>🌅</span>${r.sunrise}</div>
+          <div class="weather-chip"><span>🌇</span>${r.sunset}</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="section-head">🔵 Tire Match — ${r.surfaceType}</div>
+        <div class="tire-fit ${r.tireFitRating || 'great'}">${tireFitLabel(r.tireFitRating)} — ${r.tireFitNote}</div>
+
+        <div class="divider"></div>
+
+        <div class="section-head">🚪 From Your Front Door</div>
+        <div class="directions-box">
+          <div class="dir-title">🗺️ The Deep Dude's Departure Line</div>
+          <div class="dir-steps">
+            ${(r.departureDirections || []).map((step, i) => `
+              <div class="dir-step">
+                <div class="dir-step-num">${i + 1}</div>
+                <span>${step}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="section-head">The Expedition</div>
+        <div class="ride-desc">${r.description}</div>
+
+        <div class="divider"></div>
+
+        <div class="section-head">Best Windows to Roll</div>
+        <div class="time-grid">
+          ${r.timeSlots.map((slot, i) => `
+            <div class="time-slot ${i === 1 ? 'best' : ''}">
+              ${i === 1 ? '<div class="best-star">★ PEAK VIBE</div>' : ''}
+              <div class="time-slot-time">${slot.time}</div>
+              <div class="time-slot-desc">${slot.label}</div>
+              <div class="score-bar"><div class="score-fill" style="width:${slot.score}%"></div></div>
+              <div class="time-slot-desc">${slot.note}</div>
+            </div>
+          `).join('')}
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="section-head">The Deep Dude's Tips</div>
+        <div class="tips-list">
+          ${(r.tips || []).map(tip => `
+            <div class="tip"><div class="tip-dot"></div><span>${tip}</span></div>
+          `).join('')}
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="section-head">Other Expedition Options</div>
+        <div class="alt-grid">
+          ${(r.altRides || []).map(alt => `
+            <div class="alt-card">
+              <div class="alt-name">${alt.name}</div>
+              <div class="alt-meta">${alt.distance} · ${alt.vibe}</div>
+              <div class="alt-reason">${alt.reason}</div>
+            </div>
+          `).join('')}
+        </div>
+
+      </div>
+    </div>
+  `;
+}
+</script>
+</body>
+</html>
