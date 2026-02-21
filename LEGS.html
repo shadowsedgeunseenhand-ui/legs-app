@@ -1340,20 +1340,44 @@ Return ONLY valid JSON (no markdown fences):
         "anthropic-dangerous-direct-browser-iab-required": "true"
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-5",
         max_tokens: 2000,
         messages: [{ role: "user", content: prompt }]
       })
     });
 
     const data = await response.json();
-    if (data.error) throw new Error(data.error.message);
+
+    if (data.error) {
+      const msg = data.error.message || JSON.stringify(data.error);
+      throw new Error(\`API \${response.status}: \${msg}\`);
+    }
+
+    if (!data.content || !data.content.length) {
+      throw new Error(\`Unexpected response: \${JSON.stringify(data).slice(0, 300)}\`);
+    }
+
     const text = data.content.map(i => i.text || '').join('');
     const clean = text.replace(/```json|```/g, '').trim();
-    const rec = JSON.parse(clean);
+
+    let rec;
+    try {
+      rec = JSON.parse(clean);
+    } catch (parseErr) {
+      throw new Error(\`JSON parse failed — raw: \${clean.slice(0, 300)}\`);
+    }
+
     renderRecommendation(rec);
   } catch (err) {
-    resultsEl.innerHTML = `<div style="padding:20px"><div class="error-box">⚠️ The Deep Dude hit a snag. Check your API key and try again.<br><small style="opacity:0.6;display:block;margin-top:8px">${err.message}</small></div></div>`;
+    resultsEl.innerHTML = \`<div style="padding:20px"><div class="error-box">
+      <strong>⚠️ The Deep Dude hit a snag</strong><br><br>
+      \${err.message}<br><br>
+      <small style="opacity:0.7;line-height:2;display:block">
+        • API key must start with <code style="background:rgba(255,255,255,0.1);padding:1px 5px;border-radius:3px">sk-ant-</code><br>
+        • Get or check your key at <strong>console.anthropic.com → API Keys</strong><br>
+        • Make sure your account has credits remaining
+      </small>
+    </div></div>\`;
   }
 
   btn.disabled = false;
